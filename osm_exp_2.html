@@ -1,0 +1,263 @@
+<html>
+<head>
+    <title>OpenLayers: Open Street Map, Experiments</title>
+    <script src="js/OpenLayers-2.13.1/OpenLayers.js"></script>
+    <script src="js/jquery/1_10_2/jquery-1.10.2.js"></script>
+    <link href="css/style.css" rel="stylesheet" />
+</head>
+<body>
+    <div style="width:100%; height:100%" id="map">
+        <div id="output"></div>
+    </div>
+    
+    <script defer="defer" type="text/javascript">
+    (function(Kartta, $, undefined) {
+        var map;
+        var polygonLayer;
+        
+        init();
+
+        function init() {
+            var zoombar = new OpenLayers.Control.PanZoomBar();
+            //zoombar.panIcons = false;
+
+            var mouseposition = new OpenLayers.Control.MousePosition({
+                prefix : 'Coordinates: ',
+                separator : ' | ',
+                numDigits : 2,
+                emptyString : ''
+            });
+            
+            map = new OpenLayers.Map({
+                div: "map",
+                controls: [
+                    new OpenLayers.Control.Navigation(),
+                    zoombar,
+                    new OpenLayers.Control.LayerSwitcher({'ascending':false }),
+                    new OpenLayers.Control.ScaleLine(),
+                    new OpenLayers.Control.Permalink(),
+                    new OpenLayers.Control.Permalink('permalink'),
+                    mouseposition,
+                    new OpenLayers.Control.OverviewMap(),
+                    new OpenLayers.Control.KeyboardDefaults()
+                ],
+                allOverLays : true,
+                maxExtent : new OpenLayers.Bounds(50199.4814, 6582464.0358, 761274.6247, 7799839.8902),
+                units : "m"
+            });
+
+            var osm = new OpenLayers.Layer.OSM();
+            map.addLayers([osm]);
+
+            map.addControl(new OpenLayers.Control.LayerSwitcher());
+            map.zoomToMaxExtent();
+            
+            Kartta.map = map;
+
+            polygonLayer = new OpenLayers.Layer.Vector("Drawings");
+            map.addLayer(polygonLayer);
+            
+            addButtonPanel();
+            
+            var selectFeature = new OpenLayers.Control.SelectFeature(polygonLayer,{
+			    //multiple : true,
+			    //clickout : false,
+                hover: true
+		    });
+            map.addControl(selectFeature);
+            selectFeature.activate();
+
+            selectFeature.onSelect = function(feature) {
+                //var content = map.getLonLatFromPixel(e.xy);
+                var content = feature.geometry.getBounds().getCenterLonLat();
+                popup = new OpenLayers.Popup.FramedCloud("chicken", 
+                                         feature.geometry.getBounds().getCenterLonLat(),
+                                         null,
+                                         content,
+                                         null, true, 
+                                         selectFeature.onUnselect);
+                feature.popupClass = popupClass;
+                feature.popup = popup;
+                map.addPopup(popup);
+                // GLOBAL variable, in case popup is destroyed by clicking CLOSE box
+                lastfeature = feature;
+            };
+
+            selectFeature.onUnselect = function(feature) {
+                var feature = lastfeature;  
+                if(feature.popup) {
+                    map.removePopup(feature.popup);
+                    feature.popup.destroy();
+                    delete feature.popup;
+                }
+            };
+            
+        }
+        
+        //
+        // Select actions from button panel
+        // 
+        var toolBar;
+        function addButtonPanel() {
+            toolBar = new OpenLayers.Control.Panel({
+                createControlMarkup: function(control) {
+                    var button = document.createElement('button'),
+                        iconSpan = document.createElement('span'),
+                        textSpan = document.createElement('span');
+                    iconSpan.innerHTML = '&nbsp;';
+                    button.appendChild(iconSpan);
+                    if (control.text) {
+                        textSpan.innerHTML = control.text;
+                    }
+                    button.appendChild(textSpan);
+                    return button;
+                }
+            });
+
+            // style the sketch fancy
+            var sketchSymbolizers = {
+                "Point": {
+                    pointRadius: 4,
+                    graphicName: "square",
+                    fillColor: "white",
+                    fillOpacity: 1,
+                    strokeWidth: 1,
+                    strokeOpacity: 1,
+                    strokeColor: "#333333"
+                },
+                "Line": {
+                    //strokeWidth: 3,
+                    strokeOpacity: 1,
+                    strokeColor: "#666666",
+                    //strokeDashstyle: "dash"
+                },
+                "Polygon": {
+                    strokeWidth: 1,
+                    strokeOpacity: 1,
+                    strokeColor: "#666666",
+                    fillColor: "white",
+                    fillOpacity: 0.3
+                }
+            };
+            var style = new OpenLayers.Style();
+            style.addRules([
+                new OpenLayers.Rule({symbolizer: sketchSymbolizers})
+            ]);
+            var styleMap = new OpenLayers.StyleMap({"default": style});
+            
+            // allow testing of specific renderers via "?renderer=Canvas", etc
+            var renderer = OpenLayers.Util.getParameters(window.location.href).renderer;
+            renderer = (renderer) ? [renderer] : OpenLayers.Layer.Vector.prototype.renderers;
+            
+            // Controls
+            navControl = new OpenLayers.Control.Button({
+                type: OpenLayers.Control.TYPE_TOOL,
+                title: 'Navigate', text: 'Navigate',
+                displayClass: "moveButton" //, trigger: deactivateControls
+            });
+            
+            pointControl = new OpenLayers.Control.DrawFeature(polygonLayer,
+                        OpenLayers.Handler.Point, {
+                            title: 'Point', text: 'Point',
+                            displayClass: "drawPoint",
+                        });
+            pointControl.events.on({
+                'featureadded': onPointAdded
+            });
+            
+            // Measure
+            // http://openlayers.org/dev/examples/measure.html
+            measureControls = {
+                line: new OpenLayers.Control.Measure(
+                    OpenLayers.Handler.Path, {
+                        title:'Measure distance', text: 'Distance',
+                        persist: true,
+                        handlerOptions: {
+                            layerOptions: {
+                                renderers: renderer,
+                                styleMap: styleMap
+                            }
+                        }
+                    }
+                ),
+                polygon: new OpenLayers.Control.Measure(
+                    OpenLayers.Handler.Polygon, {
+                        title:'Measure area', text: 'Area',
+                        displayClass: "drawPolygon",
+                        persist: true,
+                        handlerOptions: {
+                            layerOptions: {
+                                renderers: renderer,
+                                styleMap: styleMap
+                            }
+                        }
+                    }
+                )
+            };
+//            measureControls.line.events.register(
+//                'click', null, console.debug("FOO")
+//            );
+            // Measure
+
+            measureControls.line.events.on({
+                "measure": handleMeasurements,
+                "measurepartial": handleMeasurements
+            });
+            measureControls.polygon.events.on({
+                "measure": handleMeasurements,
+                "measurepartial": handleMeasurements
+            });
+            
+            toolBar.addControls([
+                navControl,
+                pointControl,
+                measureControls.line,
+                measureControls.polygon
+            ]);
+
+            map.addControl(toolBar);
+        }
+        
+        var popupClass = OpenLayers.Class(OpenLayers.Popup.FramedCloud, {
+            "autoSize": true,
+            "minSize": new OpenLayers.Size(300, 50),
+            "maxSize": new OpenLayers.Size(500, 300),
+            "keepInMap": true
+        });
+
+//        function deactivateControls() {
+//            console.debug("deactivateControls");
+//            for(key in toolBar.controls) {
+//                var control = toolBar.controls[key];
+//                control.deactivate();
+//            }
+//        }
+        
+        function onPointAdded(object) {
+            console.log('Event: onPointAdded');
+            //var oFeature = object.feature;
+            //oFeature.state = OpenLayers.State.INSERT; // set the 'insert' state to the feature
+        }
+
+        // Measure
+        function handleMeasurements(event) {
+            var geometry = event.geometry;
+            var units = event.units;
+            var order = event.order;
+            var measure = event.measure;
+            var element = document.getElementById('output');
+            var out = "";
+            if(order == 1) {
+                out += "measure: " + measure.toFixed(3) + " " + units;
+            } else {
+                out += "measure: " + measure.toFixed(3) + " " + units + "<sup>2</" + "sup>";
+            }
+            element.innerHTML = out;
+        }
+        // Measure
+
+	}(window.Kartta = window.Kartta || {}, jQuery));
+    </script>
+    
+</body>
+</html>

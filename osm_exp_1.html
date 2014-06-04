@@ -1,0 +1,142 @@
+<html>
+<head>
+    <title>OpenLayers: Open Street Map, Experiments</title>
+    <script src="js/OpenLayers-2.13.1/OpenLayers.js"></script>
+    <script src="js/jquery/1_10_2/jquery-1.10.2.js"></script>
+    <link href="css/style.css" rel="stylesheet" />
+</head>
+<body>
+    <select id="controlToggle" style="float: right;" name="controls">
+        <option value="none">Navigate</option>
+        <option value="polygon">Draw area</option>
+        <option value="select">Point area</option>
+        <option value="line">Draw line</option>
+    </select>
+    <div style="width:100%; height:100%" id="map">
+        <div id="output"></div>
+    </div>
+    
+    <script defer="defer" type="text/javascript">
+    (function(Kartta, $, undefined) {
+        var map;
+        var polygonLayer;
+        
+        init();
+
+        function init() {
+            var zoombar = new OpenLayers.Control.PanZoomBar();
+            //zoombar.panIcons = false;
+
+            var mouseposition = new OpenLayers.Control.MousePosition({
+                prefix : 'Coordinates: ',
+                separator : ' | ',
+                numDigits : 2,
+                emptyString : ''
+            });
+            
+            map = new OpenLayers.Map({
+                div: "map",
+                controls: [
+                    new OpenLayers.Control.Navigation(),
+                    zoombar,
+                    new OpenLayers.Control.LayerSwitcher({'ascending':false }),
+                    new OpenLayers.Control.ScaleLine(),
+                    new OpenLayers.Control.Permalink(),
+                    new OpenLayers.Control.Permalink('permalink'),
+                    mouseposition,
+                    new OpenLayers.Control.OverviewMap(),
+                    new OpenLayers.Control.KeyboardDefaults()
+                ],
+                allOverLays : true,
+                maxExtent : new OpenLayers.Bounds(50199.4814, 6582464.0358, 761274.6247, 7799839.8902),
+                units : "m"
+            });
+
+            var osm = new OpenLayers.Layer.OSM();
+            map.addLayers([osm]);
+
+            map.addControl(new OpenLayers.Control.LayerSwitcher());
+            map.zoomToMaxExtent();
+            
+            Kartta.map = map;
+
+            polygonLayer = new OpenLayers.Layer.Vector("Drawings");
+            map.addLayer(polygonLayer);
+            
+            addDropdownmenu();           
+        }
+        
+        //
+        // Select actions from dropdown menu
+        //
+        var drawControls, selectControl;
+        
+        // Select actions from dropdown menu
+        function addDropdownmenu() {
+            selectControl = new OpenLayers.Control.SelectFeature(polygonLayer,{
+                onSelect: onFeatureSelect, 
+                onUnselect: onFeatureUnselect
+            });
+            drawControls = {
+                polygon: new OpenLayers.Control.DrawFeature(polygonLayer,
+                            OpenLayers.Handler.Polygon),
+                select: selectControl,
+                line : new OpenLayers.Control.DrawFeature(polygonLayer,
+                        OpenLayers.Handler.Path, {title:'Draw lines', text: 'Draw'})
+            };
+            
+            for(var key in drawControls) {
+                map.addControl(drawControls[key]);
+            }
+        }
+        
+        function toggleControl(element) {
+            for(key in drawControls) {
+                var control = drawControls[key];
+                if(element == key) {
+                    control.activate();
+                } else {
+                    control.deactivate();
+                }
+            }
+        }
+        
+        $('#controlToggle').change(function () {
+            toggleControl($("#controlToggle").val());
+        });
+
+        var popupClass = OpenLayers.Class(OpenLayers.Popup.FramedCloud, {
+            "autoSize": true,
+            "minSize": new OpenLayers.Size(300, 50),
+            "maxSize": new OpenLayers.Size(500, 300),
+            "keepInMap": true
+        });
+		
+		function onPopupClose(evt) {
+            selectControl.unselect(selectedFeature);
+        }
+        
+        function onFeatureSelect(feature) {
+            selectedFeature = feature;
+            var content = "Area: " + feature.geometry.getArea();
+            popup = new OpenLayers.Popup.FramedCloud("chicken", 
+                                     feature.geometry.getBounds().getCenterLonLat(),
+                                     null,
+                                     content,
+                                     null, true, onPopupClose);
+            feature.popup = popup;
+            feature.popupClass = popupClass;
+            Kartta.map.addPopup(popup);
+        }
+
+        function onFeatureUnselect(feature) {
+            Kartta.map.removePopup(feature.popup);
+            feature.popup.destroy();
+            feature.popup = null;
+        }
+
+    }(window.Kartta = window.Kartta || {}, jQuery));
+    </script>
+    
+</body>
+</html>
