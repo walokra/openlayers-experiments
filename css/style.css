@@ -9,7 +9,6 @@
     opacity: 0.75;
 }
 .olControlLayerSwitcher .layersDiv input.olButton {
-    float: left;
     margin: 4px 0 4px 0;
 }
 .olControlLayerSwitcher .layersDiv label {

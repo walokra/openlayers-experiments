@@ -3,3 +3,7 @@
 Requires:
 * OpenLayers-2.13.1
 * jQuery-1.10.2
+
+1: Map with dropdown menu for drawings
+2: Toolbar for drawing lines, polygons, points and measurements
+3: Select vector features from multiple layers

@@ -25,7 +25,10 @@
                 prefix : 'Coordinates: ',
                 separator : ' | ',
                 numDigits : 2,
-                emptyString : ''
+                emptyString : '',
+				//formatOutput: function(lonLat) {
+				//	return 'ETRS-TM35FIN: ' + lonLat.lat + " | " + lonLat.lon;
+				//}
             });
             
             map = new OpenLayers.Map({
