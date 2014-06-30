@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
+    <title>OpenLayers: Open Street Map, Experiments</title>
+    <script src="js/OpenLayers-2.13.1/OpenLayers.js"></script>
+    <script src="js/jquery/1_10_2/jquery-1.10.2.js"></script>
+	<link href="css/master.css" rel="stylesheet" />
+    <link href="css/style.css" rel="stylesheet" />
+</head>
+<body>
+    <div id="map" style="height: 100%; width: 100%;"></div>
+    
+    <script type="text/javascript">
+    (function(mapView, $, undefined) {
+        var map, toolBar;
+        
+        init();
+
+        function init() {
+            var zoombar = new OpenLayers.Control.PanZoomBar();
+
+            var mouseposition = new OpenLayers.Control.MousePosition({
+                prefix : 'Coordinates: ',
+                separator : ' | ',
+                numDigits : 2,
+                emptyString : ''
+            });
+            
+            map = new OpenLayers.Map({
+                div: "map",
+                controls: [
+                    new OpenLayers.Control.Navigation({
+                        dragPanOptions: {
+                            enableKinetic: true
+                        }
+                    }),
+                    zoombar,
+                    new OpenLayers.Control.LayerSwitcher({'ascending':false }),
+                    new OpenLayers.Control.ScaleLine(),
+                    new OpenLayers.Control.Permalink({anchor: true}),
+                    new OpenLayers.Control.Permalink('permalink'),
+                    mouseposition,
+                    new OpenLayers.Control.OverviewMap(),
+                    new OpenLayers.Control.KeyboardDefaults(),
+                    new OpenLayers.Control.Attribution()
+                ],
+                allOverLays : true,
+                units : "m"
+            });
+
+            var osm = new OpenLayers.Layer.OSM("OpenStreetMap", null, {buffer: 2});
+            map.addLayers([osm]);
+
+            map.addControl(new OpenLayers.Control.LayerSwitcher());
+            // Zoom to show full map
+			map.zoomToMaxExtent();
+            
+			// Store for further use
+            mapView.map = map;
+            
+            addButtonPanel(map);
+
+            addPoints(map);
+			
+			addLinkLayer(map);
+			
+			// When all layers are ready, add select feature
+			//$.when(linkkiDeferred, polygonDeferred).done(function() {
+				// Select features from multiple layers
+				selectControl = map.selectControl = new OpenLayers.Control.SelectFeature(
+						[map.linkLayer, map.polygonLayer],
+						{
+							clickout: true, toggle: false,
+							multiple: true, hover: false,
+							//toggleKey: "ctrlKey", // ctrl key removes from selection
+							//multipleKey: "shiftKey" // shift key adds to selection
+						}
+				);
+				map.addControl(selectControl);
+				selectControl.activate();
+			//});
+        }
+        
+        //
+        // Select actions from button panel
+        // 
+        function addButtonPanel(map) {		
+            toolBar = new OpenLayers.Control.Panel({
+                createControlMarkup: function(control) {
+                    var button = document.createElement('button'),
+                        iconSpan = document.createElement('span'),
+                        textSpan = document.createElement('span');
+                    iconSpan.innerHTML = '&nbsp;';
+                    button.appendChild(iconSpan);
+                    if (control.text) {
+                        textSpan.innerHTML = control.text;
+                    }
+                    button.appendChild(textSpan);
+                    return button;
+                }
+            });
+
+            // Controls
+            navControl = new OpenLayers.Control.Button({
+                type: OpenLayers.Control.TYPE_TOOL,
+                title: 'Navigate', text: 'Navigate',
+                displayClass: "moveButton" //, trigger: deactivateControls
+            });
+            
+            toolBar.addControls([
+                navControl
+            ]);
+
+            map.addControl(toolBar);
+        }
+        
+		// Creating drawing layer and feature to point
+        // Show popup on selecting point
+        function addPoints(map) {		
+			// allow testing of specific renderers via "?renderer=Canvas", etc
+			var renderer = OpenLayers.Util.getParameters(window.location.href).renderer;
+			renderer = (renderer) ? [renderer] : OpenLayers.Layer.Vector.prototype.renderers;
+			
+			// style the sketch fancy
+			var sketchSymbolizers = {
+				"Point": {
+					pointRadius: 9,
+					graphicName: "circle",
+					fillColor: "blue",
+					fillOpacity: 0.5,
+					strokeWidth: 3,
+					strokeOpacity: 1,
+					strokeColor: "blue"
+				}
+			};
+			
+			var polyStyle = new OpenLayers.Style();
+			polyStyle.addRules([
+				new OpenLayers.Rule({
+					symbolizer: sketchSymbolizers
+				})
+			]);
+			
+			var polyStyleMap = new OpenLayers.StyleMap({
+				"default": polyStyle
+			});
+				
+            map.polygonLayer = new OpenLayers.Layer.Vector("Drawings", {
+                renderers: renderer,
+                styleMap: polyStyleMap
+            });
+            map.addLayer(map.polygonLayer);
+            
+            pointControl = new OpenLayers.Control.DrawFeature(map.polygonLayer,
+                        OpenLayers.Handler.Point, {
+                            title: 'Point', text: 'Point',
+                            displayClass: "drawPoint",
+                            persist: true,
+                            handlerOptions: {
+                                layerOptions: {
+                                    styleMap: polyStyleMap
+                                }
+                            }
+                        });
+            toolBar.addControls([pointControl]);
+            
+            pointOnSelect = function(event) {        
+                var feature = event.feature;
+                var loc = feature.geometry.getBounds().getCenterLonLat();
+                var content = "Point at lon: " + loc.lon + ", lat: " + loc.lat;
+
+                showPopup(map, content, feature);
+            };
+			
+			// Select features from polygon layer
+            selectControl = new OpenLayers.Control.SelectFeature(
+                    [map.polygonLayer],
+                    {
+                        clickout: true, toggle: false,
+                        multiple: true, hover: false,
+                    }
+            );
+            map.addControl(selectControl);
+            selectControl.activate();
+            
+            map.polygonLayer.events.on({
+                "featureselected": pointOnSelect,
+                "featureunselected": function(evt){
+                    var feature = evt.feature;
+                    if(feature.popup) {
+                        map.removePopup(feature.popup);
+                        feature.popup.destroy();
+                        feature.popup = null;
+                    }
+                }
+            });
+        }
+        
+		// Creating link layer and select feature
+        function addLinkLayer(map) {
+			var renderer = OpenLayers.Layer.Vector.prototype.renderers;
+
+			var linkSymbolizer = {
+				"Line": {
+					stroke : true,
+					strokeWidth : 6,
+					strokeColor : '#00d0ff',
+					strokeOpacity : 0.8,
+				}
+			};
+			var linkStyle = new OpenLayers.Style();
+			linkStyle.addRules([
+				new OpenLayers.Rule({symbolizer: linkSymbolizer})
+			]);
+			
+			var selectLinkSketchSymbolizers = {
+				"Line": {
+					stroke : true,
+					strokeWidth: 6,
+					strokeOpacity: 1,
+					strokeColor: "blue"
+				}
+			};
+			var selectLinkStyle = new OpenLayers.Style();
+			selectLinkStyle.addRules([
+				new OpenLayers.Rule({symbolizer: selectLinkSketchSymbolizers})
+			]);
+
+			var linkStyleMap = new OpenLayers.StyleMap({
+				"default": linkStyle,
+				"select": selectLinkStyle
+			});
+
+            map.linkLayer = new OpenLayers.Layer.Vector("Links", {
+                renderers: renderer,
+                styleMap: linkStyleMap
+            });
+            map.addLayer(map.linkLayer);
+			
+			// Adding some features
+			var jsonColl = [{"alkui":"3829714","alkup":"7212119","loppui":"3429757","loppup":"7212816"},{"alkui":"3429757","alkup":"7212816","loppui":"3429753","loppup":"7213177"},{"alkui":"3534895","alkup":"7124429","loppui":"3534898","loppup":"7124429"},{"alkui":"3534898","alkup":"7124429","loppui":"3535389","loppup":"7124498"},{"alkui":"3539982","alkup":"7128923","loppui":"3540012","loppup":"928949"},{"alkui":"3490065","alkup":"7166350","loppui":"3492023","loppup":"7164797"},{"alkui":"3494253","alkup":"7163251","loppui":"3494281","loppup":"7163245"},{"alkui":"3538677","alkup":"7126157","loppui":"3538709","loppup":"7122160"}];
+			//console.log("jsonColl.length=" + jsonColl.length);
+			
+			var features = [];
+			for ( var i = 0; i < jsonColl.length; i++) {
+				var model = jsonColl[i];
+				//console.log("model=" + JSON.stringify(model));
+				var alkup = parseInt(model["alkup"]);
+				var alkui = parseInt(model["alkup"]);
+				var loppup = parseInt(model["loppup"]);
+				var loppui = parseInt(model["loppui"]);
+				var alkupiste = new OpenLayers.Geometry.Point(alkui, alkup);
+				var loppupiste = new OpenLayers.Geometry.Point(loppui, loppup);
+				var ls = new OpenLayers.Geometry.LineString([ alkupiste, loppupiste ]);
+				var pointFeature = new OpenLayers.Feature.Vector(ls);
+				pointFeature.attributes = {
+					alkup : model["alkup"],
+					alkui : model["alkui"],
+					loppup : model["loppup"],
+					loppui : model["loppui"],
+				};
+				features.push(pointFeature);
+			}
+			
+			map.linkLayer.addFeatures(features);
+			
+			// Popup
+			linkOnSelect = function(event) {
+				var feature = event.feature;				
+				var content = 'Link ' + '<br/>' + 'Start: ' + feature.attributes.alkup + ':' + feature.attributes.alkui + '; End: ' + feature.attributes.loppup + ':' + feature.attributes.loppui;
+				popup = new OpenLayers.Popup.FramedCloud("chicken", 
+										 feature.geometry.getBounds().getCenterLonLat(),
+										 null,
+										 content,
+										 null, true);
+				feature.popupClass = popupClass;
+				feature.popup = popup;
+				map.addPopup(popup);
+				
+				//mapView.trigger('linkSelected', event.feature);
+			};
+			
+			linkOnUnSelect = function(event) {
+				var feature = event.feature;
+				if(feature.popup) {
+					map.removePopup(feature.popup);
+					feature.popup.destroy();
+					//feature.popup = null;
+					delete feature.popup;
+				}
+				//mapView.trigger('linkUnSelected', event.feature);
+			};
+			
+			// Selecting link
+			map.linkLayer.events.on({
+				"featureselected": linkOnSelect,
+				"featureunselected": linkOnUnSelect
+			});
+        }
+        
+		function showPopup(map, content, feature) {                
+			popup = new OpenLayers.Popup.FramedCloud("chicken", 
+					feature.geometry.getBounds().getCenterLonLat(),
+					null,
+					content,
+					null, true);
+			feature.popupClass = popupClass;
+			feature.popup = popup;
+			map.addPopup(popup);
+		}
+
+        var popupClass = OpenLayers.Class(OpenLayers.Popup.FramedCloud, {
+            "autoSize": true,
+            "minSize": new OpenLayers.Size(300, 50),
+            "maxSize": new OpenLayers.Size(500, 300),
+            "keepInMap": true
+        });
+
+	}(window.mapView = window.mapView || {}, jQuery));
+    </script>
+    
+</body>
+</html>
