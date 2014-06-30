@@ -1,17 +1,23 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+
     <title>OpenLayers: Open Street Map, Experiments</title>
     <script src="js/OpenLayers-2.13.1/OpenLayers.js"></script>
     <script src="js/jquery/1_10_2/jquery-1.10.2.js"></script>
+	<link href="css/master.css" rel="stylesheet" />
     <link href="css/style.css" rel="stylesheet" />
 </head>
 <body>
-    <div style="width:100%; height:100%" id="map">
+    <div id="map" style="width:100%; height:100%">
         <div id="output"></div>
     </div>
     
-    <script defer="defer" type="text/javascript">
-    (function(Kartta, $, undefined) {
+    <script type="text/javascript">
+    (function(mapView, $, undefined) {
         var map;
         var polygonLayer;
         
@@ -19,16 +25,12 @@
 
         function init() {
             var zoombar = new OpenLayers.Control.PanZoomBar();
-            //zoombar.panIcons = false;
 
             var mouseposition = new OpenLayers.Control.MousePosition({
                 prefix : 'Coordinates: ',
                 separator : ' | ',
                 numDigits : 2,
-                emptyString : '',
-				//formatOutput: function(lonLat) {
-				//	return 'ETRS-TM35FIN: ' + lonLat.lat + " | " + lonLat.lon;
-				//}
+                emptyString : ''
             });
             
             map = new OpenLayers.Map({
@@ -54,9 +56,10 @@
 
             map.addControl(new OpenLayers.Control.LayerSwitcher());
             map.zoomToMaxExtent();
-            
-            Kartta.map = map;
 
+			// Storing map for further use
+			mapView.map = map;
+			
             polygonLayer = new OpenLayers.Layer.Vector("Drawings");
             map.addLayer(polygonLayer);
             
@@ -228,18 +231,8 @@
             "keepInMap": true
         });
 
-//        function deactivateControls() {
-//            console.debug("deactivateControls");
-//            for(key in toolBar.controls) {
-//                var control = toolBar.controls[key];
-//                control.deactivate();
-//            }
-//        }
-        
         function onPointAdded(object) {
             console.log('Event: onPointAdded');
-            //var oFeature = object.feature;
-            //oFeature.state = OpenLayers.State.INSERT; // set the 'insert' state to the feature
         }
 
         // Measure
@@ -259,7 +252,7 @@
         }
         // Measure
 
-	}(window.Kartta = window.Kartta || {}, jQuery));
+	}(window.mapView = window.mapView || {}, jQuery));
     </script>
     
 </body>

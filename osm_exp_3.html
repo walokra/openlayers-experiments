@@ -1,15 +1,21 @@
-<html>
+<!DOCTYPE html>
+<html lang="en">
 <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="IE=edge">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    
     <title>OpenLayers: Open Street Map, Experiments</title>
     <script src="js/OpenLayers-2.13.1/OpenLayers.js"></script>
     <script src="js/jquery/1_10_2/jquery-1.10.2.js"></script>
+	<link href="css/master.css" rel="stylesheet" />
     <link href="css/style.css" rel="stylesheet" />
 </head>
 <body>
-    <div id="map"></div>
+    <div id="map" style="height: 100%; width: 100%;"></div>
     
-    <script defer="defer" type="text/javascript">
-    (function(myMap, $, undefined) {
+    <script type="text/javascript">
+    (function(mapView, $, undefined) {
         var map, toolBar;
         var pointOnSelect, markerOnSelect;
         var styleMap, renderer;
@@ -17,8 +23,9 @@
         init();
 
         function init() {
+			console.log("Creating map");
+			
             var zoombar = new OpenLayers.Control.PanZoomBar();
-            //zoombar.panIcons = false;
 
             var mouseposition = new OpenLayers.Control.MousePosition({
                 prefix : 'Coordinates: ',
@@ -55,7 +62,7 @@
             map.addControl(new OpenLayers.Control.LayerSwitcher());
             map.zoomToMaxExtent();
             
-            myMap.map = map;
+            mapView.map = map;
                     
             styleMap = getStyleMap();
             renderer = getRenderer();
@@ -71,6 +78,8 @@
         }
         
         function getStyleMap() {
+			console.log("Creating styleMap for drawing symbols");
+
             // style the sketch fancy
             var sketchSymbolizers = {
                 "Point": {
@@ -106,6 +115,8 @@
         // Select actions from button panel
         // 
         function addButtonPanel(map) {
+			console.log("Adding button panel for actions");
+		
             toolBar = new OpenLayers.Control.Panel({
                 createControlMarkup: function(control) {
                     var button = document.createElement('button'),
@@ -136,6 +147,8 @@
         }
         
         function addSelectFeature(map) {
+			console.log("Adding select feature to select point from map");
+		
             // Select features from multiple layers
             selectControl = new OpenLayers.Control.SelectFeature(
                     [map.polygonLayer, map.markerVectorsLayer],
@@ -175,7 +188,9 @@
         }
         
         // Show popup on selecting point
-        function addPoints(map) {        
+        function addPoints(map) {
+			console.log("Creating drawing layer and feature to point");
+		
             map.polygonLayer = new OpenLayers.Layer.Vector("Drawings", {
                 renderers: renderer,
                 styleMap: styleMap
@@ -216,6 +231,8 @@
         }
         
         function addMarkersVectors(map) {
+			console.log("Creating markers layer and select feature");
+		
             map.markerVectorsLayer = new OpenLayers.Layer.Vector("Markers (vectors)", {
                 renderers: renderer,
                 styleMap: new OpenLayers.StyleMap({
@@ -267,6 +284,8 @@
         
         // Show popup on selecting marker
         function addMarkers(map) {
+			console.log("Adding markers");
+		
             map.markerLayer = new OpenLayers.Layer.Markers("Markers (markers)", {
                 renderers: renderer,
                 styleMap: styleMap
@@ -304,7 +323,7 @@
             "keepInMap": true
         });
 
-	}(window.myMap = window.myMap || {}, jQuery));
+	}(window.mapView = window.mapView || {}, jQuery));
     </script>
     
 </body>
