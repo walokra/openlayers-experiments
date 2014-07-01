@@ -18,16 +18,27 @@
     (function(mapView, $, undefined) {
         var map, toolBar;
         
+        // Set up projections
+        // View data and work data with longitude/latitude coordinates and transform to be used with Web Mercator (OpenStreetMap, Google Maps) coordinates.
+        // World Geodetic System 1984 projection (lon/lat). Latitudes are = 90 - -90 and Longitudes are = 180 - -180
+        var WGS84 = new OpenLayers.Projection("EPSG:4326");
+        // WGS84 Web Mercator projection (meters). x/y axis coordinate system.
+        var MERCATOR = new OpenLayers.Projection("EPSG:900913");
+        
         init();
 
         function init() {
             var zoombar = new OpenLayers.Control.PanZoomBar();
 
             var mouseposition = new OpenLayers.Control.MousePosition({
-                prefix : 'Coordinates: ',
+                 prefix: '<a target="_blank" ' +
+                        'href="http://spatialreference.org/ref/epsg/4326/">' +
+                        'EPSG:4326</a> coordinates: ',
                 separator : ' | ',
-                numDigits : 2,
-                emptyString : ''
+                numDigits : 6,
+                emptyString : '',
+                projection: MERCATOR,
+                displayProjection: WGS84
             });
             
             map = new OpenLayers.Map({
@@ -52,12 +63,26 @@
                 units : "m"
             });
 
+            // Setting up the OpenStreetMap layer
+            // We will need to set the map projection to WGS84 Google Mercator. 
+            // However, display the map coordinates in longitude/latitude with displayProjection
             var osm = new OpenLayers.Layer.OSM("OpenStreetMap", null, {buffer: 2});
             map.addLayers([osm]);
 
             map.addControl(new OpenLayers.Control.LayerSwitcher());
+        
+            // Center the map to Helsinki
+            // Set the map center by using a lat,lon so we project that coordinate from WGS to Mercator.
+            map.setCenter(
+                new OpenLayers.LonLat(24.946008,60.220597) // Center of the map
+                .transform(
+                    new OpenLayers.Projection(WGS84), // transform from new RD 
+                    new OpenLayers.Projection(MERCATOR) // to Spherical Mercator Projection
+                ),
+                12); // Zoom level
+
             // Zoom to show full map
-			map.zoomToMaxExtent();
+			//map.zoomToMaxExtent();
             
 			// Store for further use
             mapView.map = map;
@@ -68,21 +93,18 @@
 			
 			addLinkLayer(map);
 			
-			// When all layers are ready, add select feature
-			//$.when(linkkiDeferred, polygonDeferred).done(function() {
-				// Select features from multiple layers
-				selectControl = map.selectControl = new OpenLayers.Control.SelectFeature(
-						[map.linkLayer, map.polygonLayer],
-						{
-							clickout: true, toggle: false,
-							multiple: true, hover: false,
-							//toggleKey: "ctrlKey", // ctrl key removes from selection
-							//multipleKey: "shiftKey" // shift key adds to selection
-						}
-				);
-				map.addControl(selectControl);
-				selectControl.activate();
-			//});
+            // Select features from multiple layers
+            selectControl = map.selectControl = new OpenLayers.Control.SelectFeature(
+                    [map.linkLayer, map.polygonLayer],
+                    {
+                        clickout: true, toggle: false,
+                        multiple: true, hover: false,
+                        //toggleKey: "ctrlKey", // ctrl key removes from selection
+                        //multipleKey: "shiftKey" // shift key adds to selection
+                    }
+            );
+            map.addControl(selectControl);
+            selectControl.activate();
         }
         
         //
@@ -151,6 +173,7 @@
 				
             map.polygonLayer = new OpenLayers.Layer.Vector("Drawings", {
                 renderers: renderer,
+                projection: MERCATOR,
                 styleMap: polyStyleMap
             });
             map.addLayer(map.polygonLayer);
@@ -171,8 +194,10 @@
             pointOnSelect = function(event) {        
                 var feature = event.feature;
                 var loc = feature.geometry.getBounds().getCenterLonLat();
-                var content = "Point at lon: " + loc.lon + ", lat: " + loc.lat;
-
+                var loc_900913 = loc.transform(MERCATOR, WGS84);
+                console.log("Point: " + loc + "; transformed=" + loc_900913);
+                var content = loc_900913.lon.toFixed(6) + "," + loc_900913.lat.toFixed(6);
+                
                 showPopup(map, content, feature);
             };
 			
@@ -241,37 +266,63 @@
             });
             map.addLayer(map.linkLayer);
 			
-			// Adding some features
-			var jsonColl = [{"alkui":"3829714","alkup":"7212119","loppui":"3429757","loppup":"7212816"},{"alkui":"3429757","alkup":"7212816","loppui":"3429753","loppup":"7213177"},{"alkui":"3534895","alkup":"7124429","loppui":"3534898","loppup":"7124429"},{"alkui":"3534898","alkup":"7124429","loppui":"3535389","loppup":"7124498"},{"alkui":"3539982","alkup":"7128923","loppui":"3540012","loppup":"928949"},{"alkui":"3490065","alkup":"7166350","loppui":"3492023","loppup":"7164797"},{"alkui":"3494253","alkup":"7163251","loppui":"3494281","loppup":"7163245"},{"alkui":"3538677","alkup":"7126157","loppui":"3538709","loppup":"7122160"}];
-			//console.log("jsonColl.length=" + jsonColl.length);
-			
+			// Adding some points to draw lines
+			var jsonColl = [{"start":"24.936223,60.171195", "end":"24.929614,60.177770"},
+                           {"start":"24.929614,60.177770", "end":"24.927211,60.181824"},
+                           {"start":"24.927211,60.181824", "end":"24.916826,60.189506"},
+                            {"start":"24.916826,60.189506", "end":"24.901977,60.195095"},
+                            {"start":"24.901977,60.195095", "end":"24.901548,60.198934"},
+                            {"start":"24.901548,60.198934", "end":"24.899059,60.201323"},
+                            {"start":"24.899059,60.201323", "end":"24.899316,60.208019"},
+                            {"start":"24.899316,60.208019", "end":"24.909358,60.219616"},
+                            {"start":"24.909358,60.219616", "end":"24.906955,60.227630"},
+                            {"start":"24.909358,60.219616", "end":"24.906955,60.227630"},
+                            {"start":"24.906955,60.227630", "end":"24.877344,60.259962"},
+                            {"start":"24.877344,60.259962", "end":"24.874769,60.265795"},
+                            {"start":"24.874769,60.265795", "end":"24.874683,60.271371"},
+                            {"start":"24.874683,60.271371", "end":"24.868761,60.277755"},
+                            {"start":"24.868761,60.277755", "end":"24.858118,60.292943"}
+                           ];
+
+            // Iterate through the collection, transform coordinates to OSM projection, 
+            // add points and draw lines between them
 			var features = [];
 			for ( var i = 0; i < jsonColl.length; i++) {
 				var model = jsonColl[i];
 				//console.log("model=" + JSON.stringify(model));
-				var alkup = parseInt(model["alkup"]);
-				var alkui = parseInt(model["alkup"]);
-				var loppup = parseInt(model["loppup"]);
-				var loppui = parseInt(model["loppui"]);
-				var alkupiste = new OpenLayers.Geometry.Point(alkui, alkup);
-				var loppupiste = new OpenLayers.Geometry.Point(loppui, loppup);
-				var ls = new OpenLayers.Geometry.LineString([ alkupiste, loppupiste ]);
+                var start = model["start"].split(",");
+                var start0 = parseFloat(start[0]);
+                var start1 = parseFloat(start[1]);
+                var start_loc = new OpenLayers.LonLat(start0, start1);
+                
+                var end = model["end"].split(",");                
+                var end0 = parseFloat(end[0]);
+                var end1 = parseFloat(end[1]);
+                var end_loc = new OpenLayers.LonLat(end0, end1);
+
+				var start_point = new OpenLayers.Geometry.Point(start0, start1);
+                var end_point = new OpenLayers.Geometry.Point(end0, end1);
+                start_point.transform(WGS84, MERCATOR);
+                end_point.transform(WGS84, MERCATOR);
+                //console.log("start: " + start + "; " + start_loc + "; " + start_point);
+                //console.log("end: " + end + "; " + end_loc + "; " + end_point);
+
+                // Make line and add it as a feature
+				var ls = new OpenLayers.Geometry.LineString([start_point, end_point]);
 				var pointFeature = new OpenLayers.Feature.Vector(ls);
 				pointFeature.attributes = {
-					alkup : model["alkup"],
-					alkui : model["alkui"],
-					loppup : model["loppup"],
-					loppui : model["loppui"],
+					start : start,
+					end : end
 				};
 				features.push(pointFeature);
 			}
 			
 			map.linkLayer.addFeatures(features);
 			
-			// Popup
+			// Popup for features when selected
 			linkOnSelect = function(event) {
 				var feature = event.feature;				
-				var content = 'Link ' + '<br/>' + 'Start: ' + feature.attributes.alkup + ':' + feature.attributes.alkui + '; End: ' + feature.attributes.loppup + ':' + feature.attributes.loppui;
+				var content = 'Link ' + '<br/>' + 'Start: ' + feature.attributes.start + '; End: ' + feature.attributes.end;
 				popup = new OpenLayers.Popup.FramedCloud("chicken", 
 										 feature.geometry.getBounds().getCenterLonLat(),
 										 null,
@@ -280,8 +331,6 @@
 				feature.popupClass = popupClass;
 				feature.popup = popup;
 				map.addPopup(popup);
-				
-				//mapView.trigger('linkSelected', event.feature);
 			};
 			
 			linkOnUnSelect = function(event) {
@@ -289,10 +338,9 @@
 				if(feature.popup) {
 					map.removePopup(feature.popup);
 					feature.popup.destroy();
-					//feature.popup = null;
 					delete feature.popup;
-				}
-				//mapView.trigger('linkUnSelected', event.feature);
+					feature.popup = null;
+                }
 			};
 			
 			// Selecting link
@@ -302,9 +350,15 @@
 			});
         }
         
-		function showPopup(map, content, feature) {                
+        // Showing popup of the location coordinates
+		function showPopup(map, content, feature) {
+            // Change the projection so that the popup is placed on correct location    
+            var mapCenter = feature.geometry.getBounds().getCenterLonLat();
+            mapCenter.transform(WGS84, MERCATOR);
+            //console.log("Popup: " + feature.geometry.getBounds().getCenterLonLat() + "; transformed=" + mapCenter);
+            
 			popup = new OpenLayers.Popup.FramedCloud("chicken", 
-					feature.geometry.getBounds().getCenterLonLat(),
+					mapCenter,
 					null,
 					content,
 					null, true);
