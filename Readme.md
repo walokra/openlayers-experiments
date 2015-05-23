@@ -1,8 +1,8 @@
 # OpenLayers and Open Street Map Experiments
 
 Requires:
-* OpenLayers-2.13.1
-* jQuery-1.10.2
+* OpenLayers 2.13.1
+* jQuery 2.1.4
 
 1: Map with dropdown menu for drawings
 
